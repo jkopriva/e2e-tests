@@ -201,6 +201,94 @@ func (h *SuiteController) CreateComponent(applicationName, componentName, namesp
 	return component, nil
 }
 
+// CreateComponentFromDevfile creates a has component from a given name, namespace, application, devfile and a container image
+func (h *SuiteController) CreateComponentFromDevfile(applicationName, componentName, namespace, gitSourceURL, devfile, containerImageSource, outputContainerImage, secret string) (*appservice.Component, error) {
+	var containerImage string
+	if outputContainerImage != "" {
+		containerImage = outputContainerImage
+	} else {
+		containerImage = containerImageSource
+	}
+	component := &appservice.Component{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      componentName,
+			Namespace: namespace,
+		},
+		Spec: appservice.ComponentSpec{
+			ComponentName: componentName,
+			Application:   applicationName,
+			Source: appservice.ComponentSource{
+				ComponentSourceUnion: appservice.ComponentSourceUnion{
+					GitSource: &appservice.GitSource{
+						URL:        gitSourceURL,
+						DevfileURL: devfile,
+					},
+				},
+			},
+			Secret:         secret,
+			ContainerImage: containerImage,
+			Replicas:       1,
+			TargetPort:     8080,
+			Route:          "",
+		},
+	}
+	err := h.KubeRest().Create(context.TODO(), component)
+	if err != nil {
+		return nil, err
+	}
+	if err = utils.WaitUntil(h.ComponentReady(component), time.Minute*2); err != nil {
+		return nil, fmt.Errorf("timed out when waiting for component %s to be ready in %s namespace: %+v, component: %+v", componentName, namespace, component, err)
+	}
+	return component, nil
+}
+
+// CreateComponent create an has component from a given name, namespace, application, Dockerfile and a container image
+func (h *SuiteController) CreateComponentFromDockerfile(applicationName, componentName, namespace, gitSourceURL, gitSourceRevision, gitDockerfileURL, containerImageSource, outputContainerImage, secret string, skipInitialChecks bool) (*appservice.Component, error) {
+	var containerImage string
+	if outputContainerImage != "" {
+		containerImage = outputContainerImage
+	} else {
+		containerImage = containerImageSource
+	}
+	component := &appservice.Component{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				// PLNSRVCE-957 - if true, run only basic build pipeline tasks
+				"skip-initial-checks": strconv.FormatBool(skipInitialChecks),
+			},
+			Labels:    constants.ComponentDefaultLabel,
+			Name:      componentName,
+			Namespace: namespace,
+		},
+		Spec: appservice.ComponentSpec{
+			ComponentName: componentName,
+			Application:   applicationName,
+			Source: appservice.ComponentSource{
+				ComponentSourceUnion: appservice.ComponentSourceUnion{
+					GitSource: &appservice.GitSource{
+						URL:           gitSourceURL,
+						Revision:      gitSourceRevision,
+						DockerfileURL: gitDockerfileURL,
+					},
+				},
+			},
+			Secret:         secret,
+			ContainerImage: containerImage,
+			Replicas:       1,
+			TargetPort:     8081,
+			Route:          "",
+		},
+	}
+	err := h.KubeRest().Create(context.TODO(), component)
+	if err != nil {
+		return nil, err
+	}
+	if err = utils.WaitUntil(h.ComponentReady(component), time.Minute*2); err != nil {
+		return nil, fmt.Errorf("timed out when waiting for component %s to be ready in %s namespace: %+v, component: %+v", componentName, namespace, component, err)
+	}
+	return component, nil
+}
+
 func (h *SuiteController) ComponentReady(component *appservice.Component) wait.ConditionFunc {
 	return func() (bool, error) {
 		messages, err := h.GetHasComponentConditionStatusMessages(component.Name, component.Namespace)
@@ -442,6 +530,7 @@ func (h *SuiteController) WaitForComponentPipelineToBeFinished(componentName str
 
 }
 
+<<<<<<< HEAD
 // CreateComponentFromDevfile creates a has component from a given name, namespace, application, devfile and a container image
 func (h *SuiteController) CreateComponentFromDevfile(applicationName, componentName, namespace, gitSourceURL, devfile, containerImageSource, outputContainerImage, secret string) (*appservice.Component, error) {
 	var containerImage string
@@ -483,6 +572,8 @@ func (h *SuiteController) CreateComponentFromDevfile(applicationName, componentN
 	return component, nil
 }
 
+=======
+>>>>>>> c50cae7 (Add Dockerfile sample test)
 // DeleteAllComponentsInASpecificNamespace removes all component CRs from a specific namespace. Useful when creating a lot of resources and want to remove all of them
 func (h *SuiteController) DeleteAllComponentsInASpecificNamespace(namespace string, timeout time.Duration) error {
 	if err := h.KubeRest().DeleteAllOf(context.TODO(), &appservice.Component{}, rclient.InNamespace(namespace)); err != nil {

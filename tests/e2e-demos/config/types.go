@@ -44,7 +44,20 @@ type ComponentSpec struct {
 
 	// Repository URL from where component will be created
 	GitSourceUrl string `yaml:"gitSourceUrl,omitempty"`
+<<<<<<< HEAD
 
+=======
+<<<<<<< HEAD
+=======
+
+	// Repository revision from where component will be created
+	GitSourceRevision string `yaml:"gitSourceRevision,omitempty"`
+
+	// Dockerfile URL from where component will be created
+	GitDockerfileUrl string `yaml:"gitDockerfileUrl,omitempty"`
+
+>>>>>>> c50cae7 (Add Dockerfile sample test)
+>>>>>>> 7672aa3 (Add Dockerfile sample test)
 	// An endpoint where the framework can ping to see if a component was deployed successfully
 	HealthEndpoint string `yaml:"healthz"`
 
