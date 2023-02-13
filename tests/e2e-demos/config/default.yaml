@@ -1,5 +1,4 @@
 tests:
-<<<<<<< HEAD
   - name: "RHDP-466: create an application with springboot component"
     applicationName: "e2e-springboot"
     components:
@@ -15,17 +14,14 @@ tests:
         type: "public"
         gitSourceUrl: "https://github.com/devfile-samples/python-ex"
         language: "Python"
-=======
   - name: "STONE-441 Dockerfile repository"
     applicationName: "e2e-quarkus-dockerfile"
     components:
       - name: "dockerfile-component"
         type: "public"
-<<<<<<< HEAD
         gitSourceUrl: "https://github.com/redhat-appstudio-qe/simple-nodejs-app"
         devfileSource: "https://raw.githubusercontent.com/redhat-appstudio-qe/simple-nodejs-app/main/devfiles/devfile.yaml"
         language: "nodejs"
->>>>>>> f8b1c6c (Add Dockerfile sample test)
         healthz: "/"
   - name: "RHDP-476: create an application with DotNet component"
     applicationName: "e2e-dotnet"
@@ -45,7 +41,6 @@ tests:
         healthz: "/live"
       - name: "nodejs-priv"
         type: "private"
-<<<<<<< HEAD
         gitSourceUrl: "https://github.com/redhat-appstudio-qe-bot/nodejs-health-check.git"
         language: "JavaScript"
         healthz: "/live"
@@ -73,17 +68,6 @@ tests:
         gitSourceUrl: "https://github.com/devfile-samples/devfile-sample-code-with-quarkus.git"
         language: "Java"
         healthz: "/hello-resteasy"
-=======
-        gitSourceUrl: "https://github.com/redhat-appstudio-qe/private-quarkus-devfile-sample"
-        language: "quarkus"
-=======
-        gitSourceUrl: "https://github.com/dstar55/docker-hello-world-spring-boot"
-        gitSourceRevision: "test"
-        gitDockerfileUrl: "https://raw.githubusercontent.com/dstar55/docker-hello-world-spring-boot/master/Dockerfile"
-        language: "springboot"
->>>>>>> 7672aa3 (Add Dockerfile sample test)
-        healthz: "/hello-resteasy"
-<<<<<<< HEAD
   - name: "RHDP-467: create an application with a component from private and public quay.io images"
     skip: true
     applicationName: "e2e-quayio"
@@ -111,6 +95,3 @@ tests:
         gitSourceUrl: "https://github.com/redhat-appstudio-qe-bot/devfile-sample-python-basic-private"
         language: "python"
         healthz: "/"
-=======
->>>>>>> c50cae7 (Add Dockerfile sample test)
->>>>>>> f8b1c6c (Add Dockerfile sample test)

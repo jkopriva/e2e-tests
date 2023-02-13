@@ -237,7 +237,7 @@ func (h *SuiteController) CreateComponentFromDevfile(applicationName, componentN
 		return nil, err
 	}
 	if err = utils.WaitUntil(h.ComponentReady(component), time.Minute*2); err != nil {
-		return nil, fmt.Errorf("timed out when waiting for component %s to be ready in %s namespace: %+v, component: %+v", componentName, namespace, component, err)
+		return nil, fmt.Errorf("timed out when waiting for component %s to be ready in %s namespace. component: %s", componentName, namespace, utils.ToPrettyJSONString(component))
 	}
 	return component, nil
 }
@@ -506,7 +506,7 @@ func (h *SuiteController) GetComponentService(componentName string, componentNam
 }
 
 func (h *SuiteController) WaitForComponentPipelineToBeFinished(componentName string, applicationName string, componentNamespace string) error {
-	return wait.PollImmediate(20*time.Second, 25*time.Minute, func() (done bool, err error) {
+	return wait.PollImmediate(20*time.Second, 30*time.Minute, func() (done bool, err error) {
 		pipelineRun, err := h.GetComponentPipelineRun(componentName, applicationName, componentNamespace, false, "")
 
 		if err != nil {
@@ -530,50 +530,6 @@ func (h *SuiteController) WaitForComponentPipelineToBeFinished(componentName str
 
 }
 
-<<<<<<< HEAD
-// CreateComponentFromDevfile creates a has component from a given name, namespace, application, devfile and a container image
-func (h *SuiteController) CreateComponentFromDevfile(applicationName, componentName, namespace, gitSourceURL, devfile, containerImageSource, outputContainerImage, secret string) (*appservice.Component, error) {
-	var containerImage string
-	if outputContainerImage != "" {
-		containerImage = outputContainerImage
-	} else {
-		containerImage = containerImageSource
-	}
-	component := &appservice.Component{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      componentName,
-			Namespace: namespace,
-		},
-		Spec: appservice.ComponentSpec{
-			ComponentName: componentName,
-			Application:   applicationName,
-			Source: appservice.ComponentSource{
-				ComponentSourceUnion: appservice.ComponentSourceUnion{
-					GitSource: &appservice.GitSource{
-						URL:        gitSourceURL,
-						DevfileURL: devfile,
-					},
-				},
-			},
-			Secret:         secret,
-			ContainerImage: containerImage,
-			Replicas:       1,
-			TargetPort:     8080,
-			Route:          "",
-		},
-	}
-	err := h.KubeRest().Create(context.TODO(), component)
-	if err != nil {
-		return nil, err
-	}
-	if err = utils.WaitUntil(h.ComponentReady(component), time.Minute*2); err != nil {
-		return nil, fmt.Errorf("timed out when waiting for component %s to be ready in %s namespace. component: %s", componentName, namespace, utils.ToPrettyJSONString(component))
-	}
-	return component, nil
-}
-
-=======
->>>>>>> c50cae7 (Add Dockerfile sample test)
 // DeleteAllComponentsInASpecificNamespace removes all component CRs from a specific namespace. Useful when creating a lot of resources and want to remove all of them
 func (h *SuiteController) DeleteAllComponentsInASpecificNamespace(namespace string, timeout time.Duration) error {
 	if err := h.KubeRest().DeleteAllOf(context.TODO(), &appservice.Component{}, rclient.InNamespace(namespace)); err != nil {

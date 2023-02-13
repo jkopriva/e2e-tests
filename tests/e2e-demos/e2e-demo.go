@@ -164,16 +164,6 @@ var _ = framework.E2ESuiteDescribe(Label("e2e-demo"), func() {
 						Expect(err).NotTo(HaveOccurred())
 					})
 
-<<<<<<< HEAD
-=======
-					// User can define a git url and a devfile at the same time if multiple devfile exists into a repo
-				} else if componentTest.GitSourceUrl != "" && componentTest.Devfilesource != "" {
-					It(fmt.Sprintf("creates component %s from %s git source %s and devfile %s", componentTest.Name, componentTest.Type, componentTest.GitSourceUrl, componentTest.Devfilesource), func() {
-						component, err = fw.HasController.CreateComponentFromDevfile(application.Name, componentTest.Name, namespace,
-							componentTest.GitSourceUrl, componentTest.Devfilesource, "", containerIMG, oauthSecretName)
-						Expect(err).NotTo(HaveOccurred())
-					})
-
 					// If component have a git source application-service and a git revision
 				} else if componentTest.GitSourceUrl != "" && componentTest.GitSourceRevision != "" && componentTest.GitDockerfileUrl != "" {
 					It(fmt.Sprintf("creates component %s from %s git source %s git revision %s", componentTest.Name, componentTest.Type, componentTest.GitSourceUrl, componentTest.GitSourceRevision), func() {
@@ -183,7 +173,6 @@ var _ = framework.E2ESuiteDescribe(Label("e2e-demo"), func() {
 					})
 
 					// If component have only a git source application-service will start to fetch the devfile from the git root directory
->>>>>>> f8b1c6c (Add Dockerfile sample test)
 				} else if componentTest.GitSourceUrl != "" {
 					It(fmt.Sprintf("creates component %s from %s git source %s", componentTest.Name, componentTest.Type, componentTest.GitSourceUrl), func() {
 						for _, compDetected := range cdq.Status.ComponentDetected {
