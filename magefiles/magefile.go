@@ -658,3 +658,154 @@ func appendFrameworkDescribeFile(packageName string) error {
 	return nil
 
 }
+<<<<<<< HEAD
+=======
+
+// getDefaultPipelineBundleRef gets the specific Tekton pipeline bundle reference from a Build pipeline selector
+// (in a YAML format) from a URL specified in the parameter
+func getDefaultPipelineBundleRef(buildPipelineSelectorYamlURL, selectorName string) (string, error) {
+	res, err := http.Get(buildPipelineSelectorYamlURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to get a build pipeline selector from url %s: %v", buildPipelineSelectorYamlURL, err)
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read the body response of a build pipeline selector: %v", err)
+	}
+	ps := &buildservice.BuildPipelineSelector{}
+	if err = yaml.Unmarshal(body, ps); err != nil {
+		return "", fmt.Errorf("failed to unmarshal build pipeline selector: %v", err)
+	}
+
+	for _, s := range ps.Spec.Selectors {
+		if s.Name == selectorName {
+			return s.PipelineRef.Bundle, nil
+		}
+	}
+
+	return "", fmt.Errorf("could not find %s pipeline bundle in build pipeline selector fetched from %s", selectorName, buildPipelineSelectorYamlURL)
+}
+
+func (Local) TestUpgrade() error {
+	var testFailure bool
+
+	// if err := ci.init(); err != nil {
+	// 	return fmt.Errorf("error when running ci init: %v", err)
+	// }
+
+	if err := PreflightChecks(); err != nil {
+		return fmt.Errorf("error when running preflight checks: %v", err)
+	}
+
+	// if err := ci.setRequiredEnvVars(); err != nil {
+	// 	return fmt.Errorf("error when setting up required env vars: %v", err)
+	// }
+
+	// if err := retry(BootstrapClusterMain, 2, 10*time.Second); err != nil {
+	// 	return fmt.Errorf("error when bootstrapping cluster: %v", err)
+	// }
+
+	// if err := RunE2ETests(); err != nil {
+	// 	testFailure = true
+	// }
+
+	if err := retry(UpgradeCluster, 1, 10*time.Second); err != nil {
+		return fmt.Errorf("error when upgrading cluster: %v", err)
+	}
+
+	// if err := retry(CheckClusterAfterUpgrade, 2, 10*time.Second); err != nil {
+	// 	return fmt.Errorf("error when upgrading cluster: %v", err)
+	// }
+
+	// if err := RunE2ETests(); err != nil {
+	// 	testFailure = true
+	// }
+
+	if testFailure {
+		return fmt.Errorf("error when running e2e tests - see the log above for more details")
+	}
+
+	return nil
+}
+
+func BootstrapClusterMain() error {
+	envVars := map[string]string{}
+
+	if os.Getenv("CI") == "true" && os.Getenv("REPO_NAME") == "e2e-tests" {
+		// Some scripts in infra-deployments repo are referencing scripts/utils in e2e-tests repo
+		// This env var allows to test changes introduced in "e2e-tests" repo PRs in CI
+		envVars["E2E_TESTS_COMMIT_SHA"] = os.Getenv("PULL_PULL_SHA")
+	}
+
+	ic, err := installation.NewAppStudioInstallController()
+	if err != nil {
+		return fmt.Errorf("failed to initialize installation controller: %+v", err)
+	}
+
+	return ic.InstallAppStudioPreviewMode()
+}
+
+func UpgradeCluster() error {
+	ic, err := installation.NewAppStudioInstallController()
+	if err != nil {
+		return fmt.Errorf("failed to initialize installation controller: %+v", err)
+	}
+	return ic.MergePRInInfraDeployments()
+
+	// cwd, _ := os.Getwd()
+	// // We instance a new repository targeting the given path (the .git folder)
+	// r, err := git.PlainOpen(fmt.Sprintf("%s/%s/infra-deployments", cwd, "tmp"),)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// refspec := config.RefSpec("+refs/heads/*:refs/remotes/origin/*")
+	// _, err = r.CreateRemote(&config.RemoteConfig{
+	// 	Name:  "jkopriva",
+	// 	URLs:  []string{"https://github.com/jkopriva/infra-deployments.git"},
+	// 	Fetch: []config.RefSpec{refspec},
+	// })
+	// if err != nil {
+	// 	return err
+	// }
+
+	// // Fetch using the new remote
+	// err = r.Fetch(&git.FetchOptions{
+	// 	RemoteName: "example",
+	// })
+	// if err != nil {
+	// 	return err
+	// }
+
+	// // Get the working directory for the repository
+	// w, err := r.Worktree()
+	// if err != nil {
+	// 	return err
+	// }
+
+	// err = w.Pull(&git.PullOptions{RemoteName: "jkopriva", ReferenceName: "example"})
+
+	// if err != nil {
+	// 	return err
+	// }
+
+	// // err = r.Push(&git.PushOptions{
+	// // 	RemoteName: "jkopriva",
+	// // })
+
+	// if err != nil {
+	// 	return err
+	// }
+
+	// return err
+}
+
+func CheckClusterAfterUpgrade() error {
+	ic, err := installation.NewAppStudioInstallController()
+	if err != nil {
+		return fmt.Errorf("failed to initialize installation controller: %+v", err)
+	}
+	return ic.MergePRInInfraDeployments()
+}
+>>>>>>> eb5200a6 (Changes related upgrade tests)

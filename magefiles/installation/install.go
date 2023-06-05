@@ -5,13 +5,18 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/devfile/library/pkg/util"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+
 	kubeCl "github.com/redhat-appstudio/e2e-tests/pkg/apis/kubernetes"
 	"github.com/redhat-appstudio/e2e-tests/pkg/constants"
+	"github.com/redhat-appstudio/e2e-tests/pkg/framework"
+
 	"github.com/redhat-appstudio/e2e-tests/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
@@ -91,6 +96,29 @@ func NewAppStudioInstallController() (*InstallAppStudio, error) {
 	}, nil
 }
 
+func NewAppStudioInstallControllerDefaut() (*InstallAppStudio, error) {
+	cwd, _ := os.Getwd()
+	k8sClient, err := kubeCl.NewAdminKubernetesClient()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &InstallAppStudio{
+		KubernetesClient:                 k8sClient,
+		TmpDirectory:                     DEFAULT_TMP_DIR,
+		InfraDeploymentsCloneDir:         fmt.Sprintf("%s/%s/infra-deployments", cwd, DEFAULT_TMP_DIR),
+		InfraDeploymentsBranch:           DEFAULT_INFRA_DEPLOYMENTS_BRANCH,
+		InfraDeploymentsOrganizationName: DEFAULT_INFRA_DEPLOYMENTS_GH_ORG,
+		LocalForkName:                    DEFAULT_LOCAL_FORK_NAME,
+		LocalGithubForkOrganization:      utils.GetEnv("MY_GITHUB_ORG", DEFAULT_LOCAL_FORK_ORGANIZATION),
+		E2EApplicationsNamespace:         utils.GetEnv("E2E_APPLICATIONS_NAMESPACE", DEFAULT_E2E_APPLICATIONS_NAMEPSPACE),
+		SharedSecretNamespace:            DEFAULT_SHARED_SECRETS_NAMESPACE,
+		HasDefaultImageRepository:        utils.GetEnv("HAS_DEFAULT_IMAGE_REPOSITORY", fmt.Sprintf("quay.io/%s/test-images-protected", DEFAULT_E2E_QUAY_ORG)),
+		QuayToken:                        utils.GetEnv("QUAY_TOKEN", ""),
+	}, nil
+}
+
 // Start the appstudio installation in preview mode.
 func (i *InstallAppStudio) InstallAppStudioPreviewMode() error {
 	if _, err := i.cloneInfraDeployments(); err != nil {
@@ -139,6 +167,105 @@ func (i *InstallAppStudio) cloneInfraDeployments() (*git.Remote, error) {
 
 	return repo.CreateRemote(&config.RemoteConfig{Name: i.LocalForkName, URLs: []string{fmt.Sprintf("https://github.com/%s/infra-deployments.git", i.LocalGithubForkOrganization)}})
 }
+
+func (i *InstallAppStudio) MergePRInInfraDeployments() error {
+
+	// We instance a new repository targeting the given path (the .git folder)
+	//	r, err := git.PlainOpen(i.InfraDeploymentsCloneDir)
+	//r, err := git.PlainOpen("tmp/infra-deployments")
+	// if err != nil {
+	// 	return err
+	// }
+
+	// refspec := config.RefSpec("+refs/heads/*:refs/remotes/origin/*")
+	// _, err = r.CreateRemote(&config.RemoteConfig{
+	// 	Name:  "jkopriva",
+	// 	URLs:  []string{"https://github.com/jkopriva/infra-deployments.git"},
+	// 	Fetch: []config.RefSpec{refspec},
+	// })
+	// if err != nil {
+	// 	return err
+	// }
+
+	// Fetch using the new remote
+	// err = r.Fetch(&git.FetchOptions{
+	// 	RemoteName: "jkopriva",
+	// })
+	// if err != nil {
+	// 	return err
+	// }
+
+	// Get the working directory for the repository
+	// w, err := r.Worktree()
+	// if err != nil {
+	// 	return err
+	// }
+
+	cmd, err := exec.Command("git", "-C", "./tmp/infra-deployments", "branch").CombinedOutput()
+	if err != nil {
+		klog.Fatal(err)
+	}
+	fmt.Printf("output is %s\n", cmd)
+
+	branch := strings.TrimSpace(strings.Replace(strings.Replace(string(cmd), " main", "", -1), "*", "", -1))
+
+	fmt.Printf("branch is %s\n", branch)
+
+	cmd, err = exec.Command("git", "-C", "./tmp/infra-deployments", "checkout", branch).Output()
+	if err != nil {
+		klog.Fatal(err)
+	}
+	fmt.Printf("output is %s\n", cmd)
+
+	cmd, err = exec.Command("git", "-C", "./tmp/infra-deployments", "pull", "https://github.com/redhat-appstudio/infra-deployments.git", "application-service", "--no-rebase", "-q").Output()
+	fmt.Printf("output pull %s\n", cmd)
+
+	if err != nil {
+		klog.Fatal(err)
+	}
+
+	// cmd, err = exec.Command("git", "push", "-u", "qe").Output()
+	// fmt.Printf("output push %s\n", cmd)
+
+	// if err != nil {
+	// 	klog.Fatal(err)
+	// }
+
+	// klog.Info("git pull origin")
+	// err = w.Pull(&git.PullOptions{RemoteName: "jkopriva"})
+	// if err != nil {
+	// 	return err
+	// }
+
+	// klog.Info("git pull ec-batch-update")
+	// err = w.Pull(&git.PullOptions{RemoteURL: "https://github.com/enterprise-contract/infra-deployments.git", ReferenceName: "ec-batch-update"})
+
+	// if err != nil {
+	// 	return err
+	// }
+
+	// err = r.Push(&git.PushOptions{
+	// 	RemoteName: "jkopriva",
+	// })
+
+	// if err != nil {
+	// 	return err
+	// }
+
+	return err
+}
+
+func cmdExecutorMock(name string, _ bool, args ...string) (string, error) {
+	var f *framework.Framework
+	var err error
+	var kubeadminClient *framework.ControllerHub
+	asAdminClient, err := kubeapi.NewAdminKubernetesClient()
+	Expect(err).ShouldNot(HaveOccurred())
+	kubeadminClient, err = framework.InitControllerHub(asAdminClient)
+	Expect(err).ShouldNot(HaveOccurred())
+}
+
+// createSharedSecret make sure that redhat-appstudio-user-workload secret is created in the build-templates namespace for build purposes
 
 // Create secret in e2e-secrets which can be copied to testing namespaces
 func (i *InstallAppStudio) createE2EQuaySecret() error {
