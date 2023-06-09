@@ -16,7 +16,6 @@ import (
 	kubeCl "github.com/redhat-appstudio/e2e-tests/pkg/apis/kubernetes"
 	"github.com/redhat-appstudio/e2e-tests/pkg/constants"
 	"github.com/redhat-appstudio/e2e-tests/pkg/framework"
-
 	"github.com/redhat-appstudio/e2e-tests/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
@@ -217,7 +216,7 @@ func (i *InstallAppStudio) MergePRInInfraDeployments() error {
 	}
 	fmt.Printf("output is %s\n", cmd)
 
-	cmd, err = exec.Command("git", "-C", "./tmp/infra-deployments", "pull", "https://github.com/redhat-appstudio/infra-deployments.git", "application-service", "--no-rebase", "-q").Output()
+	cmd, err = exec.Command("git", "-C", "./tmp/infra-deployments", "pull", "https://github.com/jkopriva/infra-deployments.git", "application-service", "--no-rebase", "-q").Output()
 	fmt.Printf("output pull %s\n", cmd)
 
 	if err != nil {
@@ -255,15 +254,59 @@ func (i *InstallAppStudio) MergePRInInfraDeployments() error {
 	return err
 }
 
-func cmdExecutorMock(name string, _ bool, args ...string) (string, error) {
-	var f *framework.Framework
-	var err error
-	var kubeadminClient *framework.ControllerHub
-	asAdminClient, err := kubeapi.NewAdminKubernetesClient()
-	Expect(err).ShouldNot(HaveOccurred())
-	kubeadminClient, err = framework.InitControllerHub(asAdminClient)
-	Expect(err).ShouldNot(HaveOccurred())
+func checkOperatorsReady() (ready bool, err error) {
+	// 	while [ -n "$(oc get applications.argoproj.io -n openshift-gitops -o jsonpath='{range .items[*]}{@.metadata.annotations.argocd\.argoproj\.io/refresh}{end}')" ]; do
+	// 	sleep 5
+	//   done
+
+	//   INTERVAL=10
+	//   while :; do
+	// 	STATE=$(kubectl get apps -n openshift-gitops --no-headers)
+	// 	NOT_DONE=$(echo "$STATE" | grep -v "Synced[[:blank:]]*Healthy" || true)
+	// 	echo "$NOT_DONE"
+	// 	if [ -z "$NOT_DONE" ]; then
+	// 	   echo All Applications are synced and Healthy
+	// 	   break
+	// 	else
+	// 	   UNKNOWN=$(echo "$NOT_DONE" | grep Unknown | grep -v Progressing | cut -f1 -d ' ') || :
+	// 	   if [ -n "$UNKNOWN" ]; then
+	// 		 for app in $UNKNOWN; do
+	// 		   ERROR=$(oc get -n openshift-gitops applications.argoproj.io $app -o jsonpath='{.status.conditions}')
+	// 		   if echo "$ERROR" | grep -q 'context deadline exceeded'; then
+	// 			 echo Refreshing $app
+	// 			 kubectl patch applications.argoproj.io $app -n openshift-gitops --type merge -p='{"metadata": {"annotations":{"argocd.argoproj.io/refresh": "soft"}}}'
+	// 			 while [ -n "$(oc get applications.argoproj.io -n openshift-gitops $app -o jsonpath='{.metadata.annotations.argocd\.argoproj\.io/refresh}')" ]; do
+	// 			   sleep 5
+	// 			 done
+	// 			 echo Refresh of $app done
+	// 			 continue 2
+	// 		   fi
+	// 		   echo $app failed with:
+	// 		   if [ -n "$ERROR" ]; then
+	// 			 echo "$ERROR"
+	// 		   else
+	// 			 oc get -n openshift-gitops applications.argoproj.io $app -o yaml
+	// 		   fi
+	// 		 done
+	// 		 exit 1
+	// 	   fi
+	// 	   echo Waiting $INTERVAL seconds for application sync
+	// 	   sleep $INTERVAL
+	// 	fi
+	//   done
+
+	return false, err
 }
+
+// func cmdExecutorMock(name string, _ bool, args ...string) (string, error) {
+// 	var f *framework.Framework
+// 	var err error
+// 	var kubeadminClient *framework.ControllerHub
+// 	asAdminClient, err := kubeapi.NewAdminKubernetesClient()
+// 	Expect(err).ShouldNot(HaveOccurred())
+// 	kubeadminClient, err = framework.InitControllerHub(asAdminClient)
+// 	Expect(err).ShouldNot(HaveOccurred())
+// }
 
 // createSharedSecret make sure that redhat-appstudio-user-workload secret is created in the build-templates namespace for build purposes
 
