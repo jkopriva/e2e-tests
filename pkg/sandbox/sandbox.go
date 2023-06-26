@@ -71,6 +71,12 @@ type SandboxUserAuthInfo struct {
 
 	// Add a description about kubeconfigpath
 	KubeconfigPath string
+
+	// Url of user api to access kubernetes host
+	ProxyUrl string
+
+	// User token used as bearer to authenticate against kubernetes host
+	UserToken string
 }
 
 // Values to create a valid user for testing purposes
@@ -220,11 +226,55 @@ func (s *SandboxController) GetKubeconfigPathForSpecificUser(toolchainApiUrl str
 		UserName:       userName,
 		UserNamespace:  ns,
 		KubeconfigPath: kubeconfigPath,
+		ProxyUrl:       toolchainApiUrl,
+		UserToken:      keycloakAuth.AccessToken,
 	}, nil
 }
 
 func (s *SandboxController) RegisterSandboxUser(userName string) (compliantUsername string, err error) {
 	userSignup := getUserSignupSpecs(userName)
+
+	if err := s.KubeRest.Create(context.TODO(), userSignup); err != nil {
+		if k8sErrors.IsAlreadyExists(err) {
+			GinkgoWriter.Printf("User %s already exists\n", userName)
+		} else {
+			return "", err
+		}
+	}
+
+	err = utils.WaitUntil(func() (done bool, err error) {
+		err = s.KubeRest.Get(context.TODO(), types.NamespacedName{
+			Namespace: DEFAULT_TOOLCHAIN_NAMESPACE,
+			Name:      userName,
+		}, userSignup)
+
+		if err != nil {
+			return false, err
+		}
+
+		for _, condition := range userSignup.Status.Conditions {
+			if condition.Type == toolchainApi.UserSignupComplete && condition.Status == corev1.ConditionTrue {
+				compliantUsername = userSignup.Status.CompliantUsername
+				if len(compliantUsername) < 1 {
+					GinkgoWriter.Printf("Status.CompliantUsername field in UserSignup CR %s in %s namespace is empty\n", userSignup.GetName(), userSignup.GetNamespace())
+					return false, nil
+				}
+				return true, nil
+			}
+		}
+		GinkgoWriter.Printf("Waiting for UserSignup %s to have condition Complete:True\n", userSignup.GetName())
+		return false, nil
+	}, 4*time.Minute)
+
+	if err != nil {
+		return "", err
+	}
+	return compliantUsername, nil
+
+}
+
+func (s *SandboxController) RegisterBannedSandboxUser(userName string) (compliantUsername string, err error) {
+	userSignup := getUserSignupSpecsBanned(userName)
 
 	if err := s.KubeRest.Create(context.TODO(), userSignup); err != nil {
 		if k8sErrors.IsAlreadyExists(err) {
@@ -282,6 +332,28 @@ func getUserSignupSpecs(username string) *toolchainApi.UserSignup {
 			Username: username,
 			States: []toolchainApi.UserSignupState{
 				toolchainApi.UserSignupStateApproved,
+			},
+		},
+	}
+}
+
+func getUserSignupSpecsBanned(username string) *toolchainApi.UserSignup {
+	return &toolchainApi.UserSignup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      username,
+			Namespace: DEFAULT_TOOLCHAIN_NAMESPACE,
+			Annotations: map[string]string{
+				"toolchain.dev.openshift.com/user-email": fmt.Sprintf("%s@user.us", username),
+			},
+			Labels: map[string]string{
+				"toolchain.dev.openshift.com/email-hash": md5.CalcMd5(fmt.Sprintf("%s@user.us", username)),
+			},
+		},
+		Spec: toolchainApi.UserSignupSpec{
+			Userid:   username,
+			Username: username,
+			States: []toolchainApi.UserSignupState{
+				toolchainApi.UserSignupStateBanned,
 			},
 		},
 	}

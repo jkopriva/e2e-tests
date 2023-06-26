@@ -58,3 +58,7 @@ func SPISuiteDescribe(args ...interface{}) bool {
 func EnterpriseContractSuiteDescribe(text string, args ...interface{}) bool {
 	return Describe("[enterprise-contract-suite "+text+"]", args, Ordered)
 }
+
+func UpgradeSuiteDescribe(text string, args ...interface{}) bool {
+	return Describe("[upgrade-suite "+text+"]", args, Ordered)
+}

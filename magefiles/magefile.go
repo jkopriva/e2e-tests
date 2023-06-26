@@ -242,7 +242,7 @@ func RunE2ETests() error {
 	cwd, _ := os.Getwd()
 
 	// added --output-interceptor-mode=none to mitigate RHTAPBUGS-34
-	return sh.RunV("ginkgo", "-p", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=e2e-report.xml", "--label-filter=$E2E_TEST_SUITE_LABEL", "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
+	return sh.RunV("ginkgo", "-p", "-vv", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=e2e-report.xml", "--label-filter=$E2E_TEST_SUITE_LABEL", "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
 }
 
 func PreflightChecks() error {
@@ -658,34 +658,6 @@ func appendFrameworkDescribeFile(packageName string) error {
 	return nil
 
 }
-<<<<<<< HEAD
-=======
-
-// getDefaultPipelineBundleRef gets the specific Tekton pipeline bundle reference from a Build pipeline selector
-// (in a YAML format) from a URL specified in the parameter
-func getDefaultPipelineBundleRef(buildPipelineSelectorYamlURL, selectorName string) (string, error) {
-	res, err := http.Get(buildPipelineSelectorYamlURL)
-	if err != nil {
-		return "", fmt.Errorf("failed to get a build pipeline selector from url %s: %v", buildPipelineSelectorYamlURL, err)
-	}
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read the body response of a build pipeline selector: %v", err)
-	}
-	ps := &buildservice.BuildPipelineSelector{}
-	if err = yaml.Unmarshal(body, ps); err != nil {
-		return "", fmt.Errorf("failed to unmarshal build pipeline selector: %v", err)
-	}
-
-	for _, s := range ps.Spec.Selectors {
-		if s.Name == selectorName {
-			return s.PipelineRef.Bundle, nil
-		}
-	}
-
-	return "", fmt.Errorf("could not find %s pipeline bundle in build pipeline selector fetched from %s", selectorName, buildPipelineSelectorYamlURL)
-}
 
 func (Local) TestUpgrade() error {
 	var testFailure bool
@@ -702,25 +674,33 @@ func (Local) TestUpgrade() error {
 	// 	return fmt.Errorf("error when setting up required env vars: %v", err)
 	// }
 
-	// if err := retry(BootstrapClusterMain, 2, 10*time.Second); err != nil {
+	// if err := retry(BootstrapClusterForUpgrade, 2, 10*time.Second); err != nil {
 	// 	return fmt.Errorf("error when bootstrapping cluster: %v", err)
 	// }
 
-	// if err := RunE2ETests(); err != nil {
-	// 	testFailure = true
-	// }
+	if err := retry(CheckClusterAfterUpgrade, 2, 10*time.Second); err != nil {
+		return fmt.Errorf("error when upgrading cluster: %v", err)
+	}
+
+	if err := retry(CreateWorkload, 1, 10*time.Second); err != nil {
+		return fmt.Errorf("error when creating workload: %v", err)
+	}
+
+	if err := CheckWorkload(); err != nil {
+		return fmt.Errorf("error when checking workload: %v", err)
+	}
 
 	if err := retry(UpgradeCluster, 1, 10*time.Second); err != nil {
 		return fmt.Errorf("error when upgrading cluster: %v", err)
 	}
 
-	// if err := retry(CheckClusterAfterUpgrade, 2, 10*time.Second); err != nil {
-	// 	return fmt.Errorf("error when upgrading cluster: %v", err)
-	// }
+	if err := retry(CheckClusterAfterUpgrade, 2, 10*time.Second); err != nil {
+		return fmt.Errorf("error when checking cluster after upgrade: %v", err)
+	}
 
-	// if err := RunE2ETests(); err != nil {
-	// 	testFailure = true
-	// }
+	if err := CheckWorkload(); err != nil {
+		return fmt.Errorf("error when checking workload after upgrade: %v", err)
+	}
 
 	if testFailure {
 		return fmt.Errorf("error when running e2e tests - see the log above for more details")
@@ -729,7 +709,21 @@ func (Local) TestUpgrade() error {
 	return nil
 }
 
-func BootstrapClusterMain() error {
+func runGitCommandMerge(remoteName, branchName string) error {
+	var git = sh.RunCmd("git")
+	for _, arg := range [][]string{
+		{"remote", "add", remoteName, fmt.Sprintf("https://github.com/%s/e2e-tests.git", remoteName)},
+		{"fetch", remoteName},
+		{"checkout", branchName},
+	} {
+		if err := git(arg...); err != nil {
+			return fmt.Errorf("error when checkout out remote branch %s from remote %s: %v", branchName, remoteName, err)
+		}
+	}
+	return nil
+}
+
+func BootstrapClusterForUpgrade() error {
 	envVars := map[string]string{}
 
 	if os.Getenv("CI") == "true" && os.Getenv("REPO_NAME") == "e2e-tests" {
@@ -738,7 +732,7 @@ func BootstrapClusterMain() error {
 		envVars["E2E_TESTS_COMMIT_SHA"] = os.Getenv("PULL_PULL_SHA")
 	}
 
-	ic, err := installation.NewAppStudioInstallController()
+	ic, err := installation.NewAppStudioInstallControllerDefault()
 	if err != nil {
 		return fmt.Errorf("failed to initialize installation controller: %+v", err)
 	}
@@ -747,58 +741,11 @@ func BootstrapClusterMain() error {
 }
 
 func UpgradeCluster() error {
-	ic, err := installation.NewAppStudioInstallController()
+	ic, err := installation.NewAppStudioInstallControllerDefault()
 	if err != nil {
 		return fmt.Errorf("failed to initialize installation controller: %+v", err)
 	}
-	return ic.MergePRInInfraDeployments()
-
-	// cwd, _ := os.Getwd()
-	// // We instance a new repository targeting the given path (the .git folder)
-	// r, err := git.PlainOpen(fmt.Sprintf("%s/%s/infra-deployments", cwd, "tmp"),)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// refspec := config.RefSpec("+refs/heads/*:refs/remotes/origin/*")
-	// _, err = r.CreateRemote(&config.RemoteConfig{
-	// 	Name:  "jkopriva",
-	// 	URLs:  []string{"https://github.com/jkopriva/infra-deployments.git"},
-	// 	Fetch: []config.RefSpec{refspec},
-	// })
-	// if err != nil {
-	// 	return err
-	// }
-
-	// // Fetch using the new remote
-	// err = r.Fetch(&git.FetchOptions{
-	// 	RemoteName: "example",
-	// })
-	// if err != nil {
-	// 	return err
-	// }
-
-	// // Get the working directory for the repository
-	// w, err := r.Worktree()
-	// if err != nil {
-	// 	return err
-	// }
-
-	// err = w.Pull(&git.PullOptions{RemoteName: "jkopriva", ReferenceName: "example"})
-
-	// if err != nil {
-	// 	return err
-	// }
-
-	// // err = r.Push(&git.PushOptions{
-	// // 	RemoteName: "jkopriva",
-	// // })
-
-	// if err != nil {
-	// 	return err
-	// }
-
-	// return err
+	return ic.MergePRInRemote(utils.GetEnv("UPGRADE_BRANCH", ""), utils.GetEnv("UPGRADE_FORK", ""))
 }
 
 func CheckClusterAfterUpgrade() error {
@@ -806,6 +753,19 @@ func CheckClusterAfterUpgrade() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize installation controller: %+v", err)
 	}
-	return ic.MergePRInInfraDeployments()
+	return ic.CheckOperatorsReady()
 }
->>>>>>> eb5200a6 (Changes related upgrade tests)
+
+func CreateWorkload() error {
+	cwd, _ := os.Getwd()
+
+	// added --output-interceptor-mode=none to mitigate RHTAPBUGS-34
+	return sh.RunV("ginkgo", "-p", "-vv", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=e2e-report.xml", "--label-filter=upgrade", "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
+}
+
+func CheckWorkload() error {
+	cwd, _ := os.Getwd()
+
+	// added --output-interceptor-mode=none to mitigate RHTAPBUGS-34
+	return sh.RunV("ginkgo", "-p", "-vv", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=e2e-report.xml", "--label-filter=upgrade", "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
+}
