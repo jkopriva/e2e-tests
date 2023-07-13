@@ -23,6 +23,7 @@ import (
 	_ "github.com/redhat-appstudio/e2e-tests/tests/o11y"
 	_ "github.com/redhat-appstudio/e2e-tests/tests/release"
 	_ "github.com/redhat-appstudio/e2e-tests/tests/spi"
+	_ "github.com/redhat-appstudio/e2e-tests/tests/upgrade"
 
 	"flag"
 

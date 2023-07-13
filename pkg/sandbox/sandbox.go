@@ -232,50 +232,18 @@ func (s *SandboxController) GetKubeconfigPathForSpecificUser(toolchainApiUrl str
 }
 
 func (s *SandboxController) RegisterSandboxUser(userName string) (compliantUsername string, err error) {
-	userSignup := getUserSignupSpecs(userName)
-
-	if err := s.KubeRest.Create(context.TODO(), userSignup); err != nil {
-		if k8sErrors.IsAlreadyExists(err) {
-			GinkgoWriter.Printf("User %s already exists\n", userName)
-		} else {
-			return "", err
-		}
-	}
-
-	err = utils.WaitUntil(func() (done bool, err error) {
-		err = s.KubeRest.Get(context.TODO(), types.NamespacedName{
-			Namespace: DEFAULT_TOOLCHAIN_NAMESPACE,
-			Name:      userName,
-		}, userSignup)
-
-		if err != nil {
-			return false, err
-		}
-
-		for _, condition := range userSignup.Status.Conditions {
-			if condition.Type == toolchainApi.UserSignupComplete && condition.Status == corev1.ConditionTrue {
-				compliantUsername = userSignup.Status.CompliantUsername
-				if len(compliantUsername) < 1 {
-					GinkgoWriter.Printf("Status.CompliantUsername field in UserSignup CR %s in %s namespace is empty\n", userSignup.GetName(), userSignup.GetNamespace())
-					return false, nil
-				}
-				return true, nil
-			}
-		}
-		GinkgoWriter.Printf("Waiting for UserSignup %s to have condition Complete:True\n", userSignup.GetName())
-		return false, nil
-	}, 4*time.Minute)
-
-	if err != nil {
-		return "", err
-	}
-	return compliantUsername, nil
-
+	return s.RegisterSandboxUserUserWithSignUp(userName, GetUserSignupSpecs(userName))
 }
 
 func (s *SandboxController) RegisterBannedSandboxUser(userName string) (compliantUsername string, err error) {
-	userSignup := getUserSignupSpecsBanned(userName)
+	return s.RegisterSandboxUserUserWithSignUp(userName, GetUserSignupSpecsBanned(userName))
+}
 
+func (s *SandboxController) RegisterDeactivatedSandboxUser(userName string) (compliantUsername string, err error) {
+	return s.RegisterSandboxUserUserWithSignUp(userName, GetUserSignupSpecsDeactivated(userName))
+}
+
+func (s *SandboxController) RegisterSandboxUserUserWithSignUp(userName string, userSignup *toolchainApi.UserSignup) (compliantUsername string, err error) {
 	if err := s.KubeRest.Create(context.TODO(), userSignup); err != nil {
 		if k8sErrors.IsAlreadyExists(err) {
 			GinkgoWriter.Printf("User %s already exists\n", userName)
@@ -284,6 +252,19 @@ func (s *SandboxController) RegisterBannedSandboxUser(userName string) (complian
 		}
 	}
 
+	compliantUsername, err = s.CheckUserCreatedWithSignUp(userName, userSignup)
+
+	if err != nil {
+		return "", err
+	}
+	return compliantUsername, nil
+}
+
+func (s *SandboxController) CheckUserCreated(userName string) (compliantUsername string, err error) {
+	return s.CheckUserCreatedWithSignUp(userName, GetUserSignupSpecs(userName))
+}
+
+func (s *SandboxController) CheckUserCreatedWithSignUp(userName string, userSignup *toolchainApi.UserSignup) (compliantUsername string, err error) {
 	err = utils.WaitUntil(func() (done bool, err error) {
 		err = s.KubeRest.Get(context.TODO(), types.NamespacedName{
 			Namespace: DEFAULT_TOOLCHAIN_NAMESPACE,
@@ -311,11 +292,23 @@ func (s *SandboxController) RegisterBannedSandboxUser(userName string) (complian
 	if err != nil {
 		return "", err
 	}
+
 	return compliantUsername, nil
-
 }
 
-func getUserSignupSpecs(username string) *toolchainApi.UserSignup {
+func GetUserSignupSpecs(username string) *toolchainApi.UserSignup {
+	return getUserSignupSpecsWithState(username, toolchainApi.UserSignupStateApproved)
+}
+
+func GetUserSignupSpecsBanned(username string) *toolchainApi.UserSignup {
+	return getUserSignupSpecsWithState(username, toolchainApi.UserSignupStateBanned)
+}
+
+func GetUserSignupSpecsDeactivated(username string) *toolchainApi.UserSignup {
+	return getUserSignupSpecsWithState(username, toolchainApi.UserSignupStateDeactivated)
+}
+
+func getUserSignupSpecsWithState(username string, state toolchainApi.UserSignupState) *toolchainApi.UserSignup {
 	return &toolchainApi.UserSignup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      username,
@@ -331,29 +324,7 @@ func getUserSignupSpecs(username string) *toolchainApi.UserSignup {
 			Userid:   username,
 			Username: username,
 			States: []toolchainApi.UserSignupState{
-				toolchainApi.UserSignupStateApproved,
-			},
-		},
-	}
-}
-
-func getUserSignupSpecsBanned(username string) *toolchainApi.UserSignup {
-	return &toolchainApi.UserSignup{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      username,
-			Namespace: DEFAULT_TOOLCHAIN_NAMESPACE,
-			Annotations: map[string]string{
-				"toolchain.dev.openshift.com/user-email": fmt.Sprintf("%s@user.us", username),
-			},
-			Labels: map[string]string{
-				"toolchain.dev.openshift.com/email-hash": md5.CalcMd5(fmt.Sprintf("%s@user.us", username)),
-			},
-		},
-		Spec: toolchainApi.UserSignupSpec{
-			Userid:   username,
-			Username: username,
-			States: []toolchainApi.UserSignupState{
-				toolchainApi.UserSignupStateBanned,
+				state,
 			},
 		},
 	}

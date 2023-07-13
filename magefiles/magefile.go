@@ -660,50 +660,56 @@ func appendFrameworkDescribeFile(packageName string) error {
 }
 
 func (Local) TestUpgrade() error {
-	var testFailure bool
-
-	// if err := ci.init(); err != nil {
-	// 	return fmt.Errorf("error when running ci init: %v", err)
-	// }
-
 	if err := PreflightChecks(); err != nil {
 		return fmt.Errorf("error when running preflight checks: %v", err)
 	}
 
-	// if err := ci.setRequiredEnvVars(); err != nil {
-	// 	return fmt.Errorf("error when setting up required env vars: %v", err)
-	// }
-
-	// if err := retry(BootstrapClusterForUpgrade, 2, 10*time.Second); err != nil {
-	// 	return fmt.Errorf("error when bootstrapping cluster: %v", err)
-	// }
-
-	if err := retry(CheckClusterAfterUpgrade, 2, 10*time.Second); err != nil {
-		return fmt.Errorf("error when upgrading cluster: %v", err)
+	ic, err := BootstrapClusterForUpgrade()
+	if err != nil {
+		klog.Errorf("%s", err)
+		return err
 	}
 
-	if err := retry(CreateWorkload, 1, 10*time.Second); err != nil {
-		return fmt.Errorf("error when creating workload: %v", err)
+	err = CheckClusterAfterUpgrade(ic)
+	if err != nil {
+		klog.Errorf("%s", err)
+		return err
 	}
 
-	if err := CheckWorkload(); err != nil {
-		return fmt.Errorf("error when checking workload: %v", err)
+	err = CreateWorkload()
+	if err != nil {
+		klog.Errorf("%s", err)
+		return err
 	}
 
-	if err := retry(UpgradeCluster, 1, 10*time.Second); err != nil {
-		return fmt.Errorf("error when upgrading cluster: %v", err)
+	err = VerifyWorkload()
+	if err != nil {
+		klog.Errorf("%s", err)
+		return err
 	}
 
-	if err := retry(CheckClusterAfterUpgrade, 2, 10*time.Second); err != nil {
-		return fmt.Errorf("error when checking cluster after upgrade: %v", err)
+	err = UpgradeCluster()
+	if err != nil {
+		klog.Errorf("%s", err)
+		return err
 	}
 
-	if err := CheckWorkload(); err != nil {
-		return fmt.Errorf("error when checking workload after upgrade: %v", err)
+	err = CheckClusterAfterUpgrade(ic)
+	if err != nil {
+		klog.Errorf("%s", err)
+		return err
 	}
 
-	if testFailure {
-		return fmt.Errorf("error when running e2e tests - see the log above for more details")
+	err = VerifyWorkload()
+	if err != nil {
+		klog.Errorf("%s", err)
+		return err
+	}
+
+	err = CleanWorkload()
+	if err != nil {
+		klog.Errorf("%s", err)
+		return err
 	}
 
 	return nil
@@ -723,49 +729,42 @@ func runGitCommandMerge(remoteName, branchName string) error {
 	return nil
 }
 
-func BootstrapClusterForUpgrade() error {
-	envVars := map[string]string{}
-
-	if os.Getenv("CI") == "true" && os.Getenv("REPO_NAME") == "e2e-tests" {
-		// Some scripts in infra-deployments repo are referencing scripts/utils in e2e-tests repo
-		// This env var allows to test changes introduced in "e2e-tests" repo PRs in CI
-		envVars["E2E_TESTS_COMMIT_SHA"] = os.Getenv("PULL_PULL_SHA")
-	}
-
+func BootstrapClusterForUpgrade() (*installation.InstallAppStudio, error) {
 	ic, err := installation.NewAppStudioInstallControllerDefault()
 	if err != nil {
-		return fmt.Errorf("failed to initialize installation controller: %+v", err)
+		return nil, fmt.Errorf("failed to initialize installation controller: %+v", err)
 	}
 
-	return ic.InstallAppStudioPreviewMode()
+	return ic, ic.InstallAppStudioPreviewMode()
 }
 
 func UpgradeCluster() error {
-	ic, err := installation.NewAppStudioInstallControllerDefault()
-	if err != nil {
-		return fmt.Errorf("failed to initialize installation controller: %+v", err)
-	}
-	return ic.MergePRInRemote(utils.GetEnv("UPGRADE_BRANCH", ""), utils.GetEnv("UPGRADE_FORK", ""))
+	return installation.MergePRInRemote(utils.GetEnv("UPGRADE_BRANCH", ""), utils.GetEnv("UPGRADE_FORK", ""), "./tmp/infra-deployments-upgrade")
 }
 
-func CheckClusterAfterUpgrade() error {
-	ic, err := installation.NewAppStudioInstallController()
-	if err != nil {
-		return fmt.Errorf("failed to initialize installation controller: %+v", err)
-	}
+func CheckClusterAfterUpgrade(ic *installation.InstallAppStudio) error {
 	return ic.CheckOperatorsReady()
 }
 
 func CreateWorkload() error {
-	cwd, _ := os.Getwd()
-
-	// added --output-interceptor-mode=none to mitigate RHTAPBUGS-34
-	return sh.RunV("ginkgo", "-p", "-vv", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=e2e-report.xml", "--label-filter=upgrade", "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
+	return runTests("upgrade-create", "upgrade-create-report.xml")
+	//cwd, _ := os.Getwd()
+	//return sh.RunV("ginkgo", "-p", "--output-interceptor-mode=none", "--timeout=15m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=upgrade-create-report.xml", "--label-filter=upgrade-create", "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
 }
 
-func CheckWorkload() error {
-	cwd, _ := os.Getwd()
+func VerifyWorkload() error {
+	return runTests("upgrade-verify", "upgrade-verify-report.xml")
+	//cwd, _ := os.Getwd()
+	//return sh.RunV("ginkgo", "-p", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=upgrade-verify-report.xml", "--label-filter=upgrade-verify", "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
+}
 
-	// added --output-interceptor-mode=none to mitigate RHTAPBUGS-34
-	return sh.RunV("ginkgo", "-p", "-vv", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=e2e-report.xml", "--label-filter=upgrade", "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
+func CleanWorkload() error {
+	return runTests("upgrade-cleanup", "upgrade-verify-report.xml")
+	//cwd, _ := os.Getwd()
+	//return sh.RunV("ginkgo", "-p", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=upgrade-cleanup-report.xml", "--label-filter=upgrade-cleanup", "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
+}
+
+func runTests(labelsToRun string, junitReportFile string) error {
+	cwd, _ := os.Getwd()
+	return sh.RunV("ginkgo", "-p", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report="+junitReportFile, "--label-filter="+labelsToRun, "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
 }

@@ -177,7 +177,7 @@ func (i *InstallAppStudio) cloneInfraDeployments() (*git.Remote, error) {
 	return repo.CreateRemote(&config.RemoteConfig{Name: i.LocalForkName, URLs: []string{fmt.Sprintf("https://github.com/%s/infra-deployments.git", i.LocalGithubForkOrganization)}})
 }
 
-func (i *InstallAppStudio) MergePRInRemote(branch string, fork string) error {
+func MergePRInRemote(branch string, fork string, repoPath string) error {
 	// We instance a new repository targeting the given path (the .git folder)
 	//	r, err := git.PlainOpen(i.InfraDeploymentsCloneDir)
 	//r, err := git.PlainOpen("tmp/infra-deployments")
@@ -216,35 +216,35 @@ func (i *InstallAppStudio) MergePRInRemote(branch string, fork string) error {
 		klog.Fatal("The branch for upgrade is empty!")
 	}
 
-	cmd, err := exec.Command("git", "-C", "./tmp/infra-deployments", "branch").CombinedOutput()
+	cmd, err := exec.Command("git", "-C", repoPath, "branch").CombinedOutput()
 	if err != nil {
 		klog.Fatal(err)
 	}
-	fmt.Printf("output is %s\n", cmd)
+	fmt.Printf("output repo branches: %s\n", cmd)
 
 	branchRepo := strings.TrimSpace(strings.Replace(strings.Replace(string(cmd), " main", "", -1), "*", "", -1))
 
 	fmt.Printf("branch is %s\n", branch)
 
-	cmd, err = exec.Command("git", "-C", "./tmp/infra-deployments", "checkout", branchRepo).Output()
+	cmd, err = exec.Command("git", "-C", repoPath, "checkout", branchRepo).Output()
 	if err != nil {
 		klog.Fatal(err)
 	}
-	fmt.Printf("output is %s\n", cmd)
+	fmt.Printf("output checkout %s\n", cmd)
 
 	// cmd, err = exec.Command("git", "-C", "./tmp/infra-deployments", "pull", "https://github.com/jkopriva/infra-deployments.git", "application-service", "--no-rebase", "-q").Output()
 	// fmt.Printf("output pull %s\n", cmd)
 
-	cmd, err = exec.Command("git", "-C", "./tmp/infra-deployments", "merge", "remotes/origin/o11y", "-q").Output()
+	cmd, err = exec.Command("git", "-C", repoPath, "merge", "remotes/origin/"+branch, "-q").Output()
 	if err != nil {
 		klog.Fatal(err)
 	}
-	fmt.Printf("output is %s\n", cmd)
+	fmt.Printf("output merge %s\n", cmd)
 	if err != nil {
 		klog.Fatal(err)
 	}
 
-	cmd, err = exec.Command("git", "-C", "./tmp/infra-deployments", "push", "-u", "qe").Output()
+	cmd, err = exec.Command("git", "-C", repoPath, "push", "-u", "qe").Output()
 	fmt.Printf("output push %s\n", cmd)
 	if err != nil {
 		klog.Fatal(err)
