@@ -193,8 +193,6 @@ func MergePRInRemote(branch string, fork string, repoPath string) error {
 	}
 	fmt.Printf("output repo branches: %s\n", cmd)
 
-	fmt.Printf("output repo branches: %s\n", cmd)
-
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
 		klog.Fatal(err)
@@ -216,15 +214,6 @@ func MergePRInRemote(branch string, fork string, repoPath string) error {
 		klog.Fatal(err)
 	}
 
-	//branchRepo := strings.TrimSpace(strings.Replace(strings.Replace(string(cmd), " main", "", -1), "*", "", -1))
-	// fmt.Printf("branch is %s\n", branch)
-
-	// cmd, err = exec.Command("git", "-C", repoPath, "checkout", branchRepo).Output()
-	// if err != nil {
-	// 	klog.Fatal(err)
-	// }
-	// fmt.Printf("output checkout %s\n", cmd)
-
 	wt, err := repo.Worktree()
 	if err != nil {
 		klog.Fatal(err)
@@ -237,9 +226,6 @@ func MergePRInRemote(branch string, fork string, repoPath string) error {
 		klog.Fatal(err)
 	}
 
-	// cmd, err = exec.Command("git", "-C", "./tmp/infra-deployments", "pull", "https://github.com/jkopriva/infra-deployments.git", "application-service", "--no-rebase", "-q").Output()
-	// fmt.Printf("output pull %s\n", cmd)
-
 	cmd, err = exec.Command("git", "-C", repoPath, "merge", "remotes/origin/"+branch, "-q").Output()
 	if err != nil {
 		klog.Fatal(err)
@@ -248,12 +234,6 @@ func MergePRInRemote(branch string, fork string, repoPath string) error {
 	if err != nil {
 		klog.Fatal(err)
 	}
-
-	// cmd, err = exec.Command("git", "-C", repoPath, "push", "-u", "qe").Output()
-	// fmt.Printf("output push %s\n", cmd)
-	// if err != nil {
-	// 	klog.Fatal(err)
-	// }
 
 	var auth = &http.BasicAuth{
 		Username: "123",
@@ -271,19 +251,6 @@ func MergePRInRemote(branch string, fork string, repoPath string) error {
 }
 
 func (i *InstallAppStudio) CheckOperatorsReady() (err error) {
-	// APPS=$(kubectl get apps -n openshift-gitops -o name)
-	// appsList, err := i.KubernetesClient.KubeInterface().AppsV1().Deployments("openshift-gitops").List(context.TODO(), v1.ListOptions{})
-	// if err != nil {
-	// 	klog.Fatal(err)
-	// }
-	//fmt.Printf("Application: %s\n", appsList)
-
-	// # trigger refresh of apps
-	// for APP in $APPS; do
-	//   kubectl patch $APP -n openshift-gitops --type merge -p='{"metadata": {"annotations":{"argocd.argoproj.io/refresh": "hard"}}}' &
-	// done
-	// wait
-
 	apiConfig, err := clientcmd.NewDefaultClientConfigLoadingRules().Load()
 	if err != nil {
 		klog.Fatal(err)
@@ -293,9 +260,6 @@ func (i *InstallAppStudio) CheckOperatorsReady() (err error) {
 		klog.Fatal(err)
 	}
 	appClientset := appclientset.NewForConfigOrDie(config)
-	//application, err := appClientset.ArgoprojV1alpha1().Applications("openshift-gitops").Get(context.TODO(), app.Name, metav1.GetOptions{})
-	//appsList, err := appClientset.ArgoprojV1alpha1().Applications("openshift-gitops").List(context.TODO(), v1.ListOptions{})
-	//fmt.Printf("Application: %s\n", appsList)
 
 	patchPayload := []patchStringValue{{
 		Op:    "replace",
@@ -303,69 +267,21 @@ func (i *InstallAppStudio) CheckOperatorsReady() (err error) {
 		Value: "hard",
 	}}
 	patchPayloadBytes, _ := json.Marshal(patchPayload)
-	//for _, app := range appsList.Items {
-	//fmt.Printf("Application: %s\n", app.Name)
-	//_, err = i.KubernetesClient.KubeInterface().AppsV1().Deployments("openshift-gitops").Patch(context.TODO(), app.Name, types.JSONPatchType, patchPayloadBytes, metav1.PatchOptions{})
-	// if err != nil {
-	// 	klog.Fatal(err)
-	// }
 	_, err = appClientset.ArgoprojV1alpha1().Applications("openshift-gitops").Patch(context.TODO(), "all-application-sets", types.JSONPatchType, patchPayloadBytes, metav1.PatchOptions{})
 	if err != nil {
 		klog.Fatal(err)
 	}
-	//}
 
-	// var allRefreshed = false
-	// for {
-
-	// 	if allRefreshed {
-	// 		break
-	// 	}
-	// 	time.Sleep(5 * time.Second)
-	// }
-
-	// # wait for the refresh
-	// while [ -n "$(oc get applications.argoproj.io -n openshift-gitops -o jsonpath='{range .items[*]}{@.metadata.annotations.argocd\.argoproj\.io/refresh}{end}')" ]; do
-	//   sleep 5
-	// done
-	//TODO
-
-	// while :; do
 	for {
-		// INTERVAL=10
-		//   STATE=$(kubectl get apps -n openshift-gitops --no-headers)
-		//   NOT_DONE=$(echo "$STATE" | grep -v "Synced[[:blank:]]*Healthy" || true)
-		//   echo "$NOT_DONE"
-		//   if [ -z "$NOT_DONE" ]; then
-		// 	 echo All Applications are synced and Healthy
-		// 	 break
-
 		var count = 0
 		appsListFor, err := appClientset.ArgoprojV1alpha1().Applications("openshift-gitops").List(context.TODO(), metav1.ListOptions{})
 		for _, app := range appsListFor.Items {
-			//kubeconfig := "<path-to-your-kubeconfig>"
-			//config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-			//config = i.KubernetesClient.KubeInterface()
-
-			//argocdClient, err := argov1alpha1.NewForConfig(config)
-			//application, err := argocdClient.Applications("openshift-gitops").Get(app.Name, metav1.GetOptions{})
 			fmt.Printf("Check application: %s\n", app.Name)
 			application, err := appClientset.ArgoprojV1alpha1().Applications("openshift-gitops").Get(context.TODO(), app.Name, metav1.GetOptions{})
 			if err != nil {
 				panic(err.Error())
 			}
 
-			// fmt.Printf("Application: %s\n", application.Name)
-			// fmt.Printf("Namespace: %s\n", application.Namespace)
-			// fmt.Printf("Repo URL: %s\n", application.Spec.Source.RepoURL)
-			// fmt.Printf("Target Revision: %s\n", application.Spec.Source.TargetRevision)
-			// fmt.Printf("Sync Policy: %s\n", application.Spec.SyncPolicy)
-			// Add more fields as needed
-
-			// deploy, err := i.KubernetesClient.KubeInterface().AppsV1().Deployments("openshift-gitops").Get(context.TODO(), app.Name, metav1.GetOptions{})
-			// if err != nil {
-			// 	klog.Fatal(err)
-			// }
 			if !(application.Status.Sync.Status == "Synced" && application.Status.Health.Status == "Healthy") {
 				fmt.Printf("Application %s not ready\n", app.Name)
 				count++
@@ -396,35 +312,6 @@ func (i *InstallAppStudio) CheckOperatorsReady() (err error) {
 		}
 		time.Sleep(10 * time.Second)
 	}
-
-	//   else
-	// 	 UNKNOWN=$(echo "$NOT_DONE" | grep Unknown | grep -v Progressing | cut -f1 -d ' ') || :
-	// 	 if [ -n "$UNKNOWN" ]; then
-	// 	   for app in $UNKNOWN; do
-	// 		 ERROR=$(oc get -n openshift-gitops applications.argoproj.io $app -o jsonpath='{.status.conditions}')
-	// 		 if echo "$ERROR" | grep -q 'context deadline exceeded'; then
-	// 		   echo Refreshing $app
-	// 		   kubectl patch applications.argoproj.io $app -n openshift-gitops --type merge -p='{"metadata": {"annotations":{"argocd.argoproj.io/refresh": "soft"}}}'
-	// 		   while [ -n "$(oc get applications.argoproj.io -n openshift-gitops $app -o jsonpath='{.metadata.annotations.argocd\.argoproj\.io/refresh}')" ]; do
-	// 			 sleep 5
-	// 		   done
-	// 		   echo Refresh of $app done
-	// 		   continue 2
-	// 		 fi
-	// 		 echo $app failed with:
-	// 		 if [ -n "$ERROR" ]; then
-	// 		   echo "$ERROR"
-	// 		 else
-	// 		   oc get -n openshift-gitops applications.argoproj.io $app -o yaml
-	// 		 fi
-	// 	   done
-	// 	   exit 1
-	// 	 fi
-	// 	 echo Waiting $INTERVAL seconds for application sync
-	// 	 sleep $INTERVAL
-	//   fi
-	// done
-
 	return err
 }
 

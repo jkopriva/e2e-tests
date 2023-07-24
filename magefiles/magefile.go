@@ -659,6 +659,7 @@ func appendFrameworkDescribeFile(packageName string) error {
 
 }
 
+// Run upgrade testss locally(bootstrap cluster, create workload, upgrade, verify)
 func (Local) TestUpgrade() error {
 	if err := PreflightChecks(); err != nil {
 		return fmt.Errorf("error when running preflight checks: %v", err)
@@ -715,20 +716,6 @@ func (Local) TestUpgrade() error {
 	return nil
 }
 
-func runGitCommandMerge(remoteName, branchName string) error {
-	var git = sh.RunCmd("git")
-	for _, arg := range [][]string{
-		{"remote", "add", remoteName, fmt.Sprintf("https://github.com/%s/e2e-tests.git", remoteName)},
-		{"fetch", remoteName},
-		{"checkout", branchName},
-	} {
-		if err := git(arg...); err != nil {
-			return fmt.Errorf("error when checkout out remote branch %s from remote %s: %v", branchName, remoteName, err)
-		}
-	}
-	return nil
-}
-
 func BootstrapClusterForUpgrade() (*installation.InstallAppStudio, error) {
 	ic, err := installation.NewAppStudioInstallControllerDefault()
 	if err != nil {
@@ -748,20 +735,14 @@ func CheckClusterAfterUpgrade(ic *installation.InstallAppStudio) error {
 
 func CreateWorkload() error {
 	return runTests("upgrade-create", "upgrade-create-report.xml")
-	//cwd, _ := os.Getwd()
-	//return sh.RunV("ginkgo", "-p", "--output-interceptor-mode=none", "--timeout=15m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=upgrade-create-report.xml", "--label-filter=upgrade-create", "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
 }
 
 func VerifyWorkload() error {
 	return runTests("upgrade-verify", "upgrade-verify-report.xml")
-	//cwd, _ := os.Getwd()
-	//return sh.RunV("ginkgo", "-p", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=upgrade-verify-report.xml", "--label-filter=upgrade-verify", "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
 }
 
 func CleanWorkload() error {
 	return runTests("upgrade-cleanup", "upgrade-verify-report.xml")
-	//cwd, _ := os.Getwd()
-	//return sh.RunV("ginkgo", "-p", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=upgrade-cleanup-report.xml", "--label-filter=upgrade-cleanup", "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
 }
 
 func runTests(labelsToRun string, junitReportFile string) error {
