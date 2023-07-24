@@ -14,6 +14,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 
 	appclientset "github.com/argoproj/argo-cd/v2/pkg/client/clientset/versioned"
 	kubeCl "github.com/redhat-appstudio/e2e-tests/pkg/apis/kubernetes"
@@ -178,36 +179,6 @@ func (i *InstallAppStudio) cloneInfraDeployments() (*git.Remote, error) {
 }
 
 func MergePRInRemote(branch string, fork string, repoPath string) error {
-	// We instance a new repository targeting the given path (the .git folder)
-	//	r, err := git.PlainOpen(i.InfraDeploymentsCloneDir)
-	//r, err := git.PlainOpen("tmp/infra-deployments")
-	// if err != nil {
-	// 	return err
-	// }
-
-	// refspec := config.RefSpec("+refs/heads/*:refs/remotes/origin/*")
-	// _, err = r.CreateRemote(&config.RemoteConfig{
-	// 	Name:  "jkopriva",
-	// 	URLs:  []string{"https://github.com/jkopriva/infra-deployments.git"},
-	// 	Fetch: []config.RefSpec{refspec},
-	// })
-	// if err != nil {
-	// 	return err
-	// }
-
-	// Fetch using the new remote
-	// err = r.Fetch(&git.FetchOptions{
-	// 	RemoteName: "jkopriva",
-	// })
-	// if err != nil {
-	// 	return err
-	// }
-
-	// Get the working directory for the repository
-	// w, err := r.Worktree()
-	// if err != nil {
-	// 	return err
-	// }
 	if fork == "" {
 		fork = "infra-deployments"
 	}
@@ -222,15 +193,49 @@ func MergePRInRemote(branch string, fork string, repoPath string) error {
 	}
 	fmt.Printf("output repo branches: %s\n", cmd)
 
-	branchRepo := strings.TrimSpace(strings.Replace(strings.Replace(string(cmd), " main", "", -1), "*", "", -1))
+	fmt.Printf("output repo branches: %s\n", cmd)
 
-	fmt.Printf("branch is %s\n", branch)
-
-	cmd, err = exec.Command("git", "-C", repoPath, "checkout", branchRepo).Output()
+	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
 		klog.Fatal(err)
 	}
-	fmt.Printf("output checkout %s\n", cmd)
+
+	branches, err := repo.Branches()
+	if err != nil {
+		klog.Fatal(err)
+	}
+
+	var branchRepo string
+	err = branches.ForEach(func(ref *plumbing.Reference) error {
+		if !strings.Contains("main", ref.Name().String()) {
+			branchRepo = ref.Name().String()
+		}
+		return nil
+	})
+	if err != nil {
+		klog.Fatal(err)
+	}
+
+	//branchRepo := strings.TrimSpace(strings.Replace(strings.Replace(string(cmd), " main", "", -1), "*", "", -1))
+	// fmt.Printf("branch is %s\n", branch)
+
+	// cmd, err = exec.Command("git", "-C", repoPath, "checkout", branchRepo).Output()
+	// if err != nil {
+	// 	klog.Fatal(err)
+	// }
+	// fmt.Printf("output checkout %s\n", cmd)
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		klog.Fatal(err)
+	}
+
+	err = wt.Checkout(&git.CheckoutOptions{
+		Branch: plumbing.ReferenceName(branchRepo),
+	})
+	if err != nil {
+		klog.Fatal(err)
+	}
 
 	// cmd, err = exec.Command("git", "-C", "./tmp/infra-deployments", "pull", "https://github.com/jkopriva/infra-deployments.git", "application-service", "--no-rebase", "-q").Output()
 	// fmt.Printf("output pull %s\n", cmd)
@@ -244,34 +249,25 @@ func MergePRInRemote(branch string, fork string, repoPath string) error {
 		klog.Fatal(err)
 	}
 
-	cmd, err = exec.Command("git", "-C", repoPath, "push", "-u", "qe").Output()
-	fmt.Printf("output push %s\n", cmd)
+	// cmd, err = exec.Command("git", "-C", repoPath, "push", "-u", "qe").Output()
+	// fmt.Printf("output push %s\n", cmd)
+	// if err != nil {
+	// 	klog.Fatal(err)
+	// }
+
+	var auth = &http.BasicAuth{
+		Username: "123",
+		Password: utils.GetEnv("GITHUB_TOKEN", ""),
+	}
+	err = repo.Push(&git.PushOptions{
+		RemoteName: "qe",
+		Auth:       auth,
+	})
 	if err != nil {
 		klog.Fatal(err)
 	}
 
-	// klog.Info("git pull origin")
-	// err = w.Pull(&git.PullOptions{RemoteName: "qe"})
-	// if err != nil {
-	// 	return err
-	// }
-
-	// klog.Info("git pull ec-batch-update")
-	// err = w.Pull(&git.PullOptions{RemoteURL: "https://github.com/enterprise-contract/infra-deployments.git", ReferenceName: "ec-batch-update"})
-
-	// if err != nil {
-	// 	return err
-	// }
-
-	// err = r.Push(&git.PushOptions{
-	// 	RemoteName: "qe",
-	// })
-
-	// if err != nil {
-	// 	return err
-	// }
-
-	return err
+	return nil
 }
 
 func (i *InstallAppStudio) CheckOperatorsReady() (err error) {
