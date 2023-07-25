@@ -239,7 +239,6 @@ func (ci CI) TestE2E() error {
 }
 
 func RunE2ETests() error {
-	cwd, _ := os.Getwd()
 	labelsToSkip := "!upgrade-create && !upgrade-verify && !upgrade-cleanup"
 	labelFilter := os.Getenv("$E2E_TEST_SUITE_LABEL")
 	if labelFilter == "" {
@@ -248,8 +247,8 @@ func RunE2ETests() error {
 		labelFilter = labelFilter + " && " + labelsToSkip
 	}
 
-	// added --output-interceptor-mode=none to mitigate RHTAPBUGS-34
-	return sh.RunV("ginkgo", "-p", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=e2e-report.xml", "--label-filter="+labelFilter, "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
+	return runTests(labelFilter, "e2e-report.xml")
+	//return sh.RunV("ginkgo", "-p", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report=e2e-report.xml", "--label-filter="+labelFilter, "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
 }
 
 func PreflightChecks() error {
@@ -754,5 +753,6 @@ func CleanWorkload() error {
 
 func runTests(labelsToRun string, junitReportFile string) error {
 	cwd, _ := os.Getwd()
+	// added --output-interceptor-mode=none to mitigate RHTAPBUGS-34
 	return sh.RunV("ginkgo", "-p", "--output-interceptor-mode=none", "--timeout=90m", fmt.Sprintf("--output-dir=%s", artifactDir), "--junit-report="+junitReportFile, "--label-filter="+labelsToRun, "./cmd", "--", fmt.Sprintf("--config-suites=%s/tests/e2e-demos/config/default.yaml", cwd), "--generate-rppreproc-report=true", fmt.Sprintf("--rp-preproc-dir=%s", artifactDir))
 }

@@ -315,8 +315,6 @@ func (i *InstallAppStudio) CheckOperatorsReady() (err error) {
 	return err
 }
 
-// createSharedSecret make sure that redhat-appstudio-user-workload secret is created in the build-templates namespace for build purposes
-
 // Create secret in e2e-secrets which can be copied to testing namespaces
 func (i *InstallAppStudio) createE2EQuaySecret() error {
 	quayToken := os.Getenv("QUAY_TOKEN")
